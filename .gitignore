@@ -1,4 +1,5 @@
 .idea/
+data/
 *.pyc
 *.log
 tmp/
