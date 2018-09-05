@@ -12,8 +12,6 @@ class RnnAttentionModel(object):
         self._embedding_layers()
         self._inference()
         self._build_train_op()
-        self.SOS = 0
-        self.EOS = 1
         self.sess = tf.Session()
 
     def _placeholder_layers(self):
@@ -22,17 +20,15 @@ class RnnAttentionModel(object):
         self.keep_prob = tf.placeholder(dtype=tf.float32, shape=None, name="keep_prob")
         self.batch_size = tf.shape(self.encoder_inputs)[0]
 
-        self.decoder_train_inputs = tf.concat(
-            [tf.ones([self.batch_size, 1]*self.SOS, tf.int32), self.decoder_targets], axis=1)
-        self.decoder_train_target = tf.concat(
-            [self.decoder_targets, tf.ones([self.batch_size, 1], tf.int32)*self.EOS], axis=1)
-
         self.encoder_seq_len = tf.reduce_sum(
             tf.cast(tf.not_equal(tf.cast(2, self.encoder_inputs.dtype), self.encoder_inputs), tf.int32), axis=-1
         )
         self.decoder_seq_len = tf.reduce_sum(
             tf.cast(tf.not_equal(tf.cast(2, self.decoder_targets.dtype), self.decoder_targets), tf.int32), axis=-1
         )
+
+        self.decoder_train_inputs = tf.strided_slice(self.decoder_targets, [0, 1], [self.batch_size, -1], [1, 1])
+        self.decoder_train_targets = tf.strided_slice(self.decoder_targets, [0, 0], [self.batch_size, -1], [1, 1])
         self.mask_seq_len = tf.sequence_mask(
             self.decoder_seq_len, tf.reduce_max(self.decoder_seq_len, name="max_target_length"), dtype=tf.float32)
 
@@ -156,9 +152,10 @@ class RnnAttentionModel(object):
             for encoder_input, decoder_target in pqd:
                 step += len(encoder_input)
                 _iter += 1
-                self.sess.run(fetches=[], feed_dict={
+                _, loss = self.sess.run(fetches=[self.train_op, self.loss], feed_dict={
                     self.encoder_inputs: encoder_input, self.decoder_targets: decoder_target, self.keep_prob: 0.5
                 })
+                print("<Train>\t Epoch:[%d] Iter[%d] Step:[%d] Loss[%.3f]" % (i+1, _iter, step, loss))
 
     def test(self):
         pass
