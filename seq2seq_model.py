@@ -1,4 +1,5 @@
 import tensorflow as tf
+from data_utils import PrePareQaData
 
 
 class RnnAttentionModel(object):
@@ -11,19 +12,26 @@ class RnnAttentionModel(object):
         self._embedding_layers()
         self._inference()
         self._build_train_op()
+        self.SOS = 0
+        self.EOS = 1
         self.sess = tf.Session()
 
     def _placeholder_layers(self):
         self.encoder_inputs = tf.placeholder(dtype=tf.int32, shape=[None, None], name="encoder_inputs")
         self.decoder_targets = tf.placeholder(dtype=tf.int32, shape=[None, None], name="decoder_targets")
         self.keep_prob = tf.placeholder(dtype=tf.float32, shape=None, name="keep_prob")
-
         self.batch_size = tf.shape(self.encoder_inputs)[0]
+
+        self.decoder_train_inputs = tf.concat(
+            [tf.ones([self.batch_size, 1]*self.SOS, tf.int32), self.decoder_targets], axis=1)
+        self.decoder_train_target = tf.concat(
+            [self.decoder_targets, tf.ones([self.batch_size, 1], tf.int32)*self.EOS], axis=1)
+
         self.encoder_seq_len = tf.reduce_sum(
-            tf.cast(tf.not_equal(tf.cast(0, self.encoder_inputs.dtype), self.encoder_inputs), tf.int32), axis=-1
+            tf.cast(tf.not_equal(tf.cast(2, self.encoder_inputs.dtype), self.encoder_inputs), tf.int32), axis=-1
         )
         self.decoder_seq_len = tf.reduce_sum(
-            tf.cast(tf.not_equal(tf.cast(0, self.decoder_targets.dtype), self.decoder_targets), tf.int32), axis=-1
+            tf.cast(tf.not_equal(tf.cast(2, self.decoder_targets.dtype), self.decoder_targets), tf.int32), axis=-1
         )
         self.mask_seq_len = tf.sequence_mask(
             self.decoder_seq_len, tf.reduce_max(self.decoder_seq_len, name="max_target_length"), dtype=tf.float32)
@@ -31,12 +39,12 @@ class RnnAttentionModel(object):
     def _embedding_layers(self):
         with tf.variable_scope(name_or_scope="embedding_layers"):
             encoder_emb_matrix = tf.get_variable(
-                name="encoder_emb_matrix", shape=[self.config.encoder_vocab_size, self.config.encoder_embedding_size],
+                name="encoder_emb_matrix", shape=[self.config.vocab_size, self.config.embedding_size],
                 dtype=tf.float32, initializer=tf.truncated_normal_initializer(mean=0.0, stddev=0.1)
             )
             self.encoder_emb_inp = tf.nn.embedding_lookup(params=encoder_emb_matrix, ids=self.encoder_inputs)
             decoder_emb_matrix = tf.get_variable(
-                name="decoder_emb_matrix", shape=[self.config.decoder_vocab_size, self.config.decoder_embedding_size],
+                name="decoder_emb_matrix", shape=[self.config.vocab_size, self.config.embedding_size],
                 dtype=tf.float32, initializer=tf.truncated_normal_initializer(mean=0.0, stddev=0.1)
             )
             self.decoder_emb_inp = tf.nn.embedding_lookup(params=decoder_emb_matrix, ids=self.decoder_targets)
@@ -77,23 +85,16 @@ class RnnAttentionModel(object):
                     sequence_length=self.decoder_seq_len, dtype=tf.float32, time_major=False
                 )
             elif self.config.encoder_type == "Bi":
-                (output_fw, output_bw), (state_fw, state_bw) = tf.nn.bidirectional_dynamic_rnn(
+                (output_fw, output_bw), encoder_state = tf.nn.bidirectional_dynamic_rnn(
                     cell_fw=self._combine_single_cell(self.config.encoder_type),
                     cell_bw=self._combine_single_cell(self.config.encoder_type),
                     inputs=self.encoder_emb_inp, sequence_length=self.encoder_seq_len,
                     dtype=tf.float32, time_major=False
                 )
-
-                encoder_state = tf.contrib.rnn.LSTMStateTuple(
-                    c=tf.concat([state_fw.c, state_bw.c], axis=1, name="bidirectional_concat_c"),
-                    h=tf.concat([state_fw.h, state_bw.h], axis=1, name="bidirectional_concat_h"),
-                )
                 encoder_outputs = tf.nn.dropout(tf.concat([output_fw, output_bw], axis=2), keep_prob=self.keep_prob)
             else:
                 raise ValueError("encoder type must be in [Single, Bi]")
 
-            import pdb
-            pdb.set_trace()
             if not self.config.beam_search:
                 self.encoder_state = encoder_state
                 self.encoder_outputs = encoder_outputs
@@ -113,7 +114,7 @@ class RnnAttentionModel(object):
             if self.config.unit_type == "GRU":
                 single_cell = tf.contrib.rnn.GRUCell(num_units=self.config.num_units)
             elif self.config.unit_type == "LSTM":
-                single_cell = tf.contrib.rnn.LSTMCell(num_units=self.config.num_units)
+                single_cell = tf.contrib.rnn.BasicLSTMCell(num_units=self.config.num_units)
             else:
                 raise ValueError("unit_type must in [GRU, LSTM]")
             return tf.contrib.rnn.DropoutWrapper(single_cell, self.keep_prob)
@@ -145,10 +146,19 @@ class RnnAttentionModel(object):
 
         decoder_outputs = tf.contrib.seq2seq.dynamic_decode(decoder=inference_decoder, maximum_iterations=self.decoder_seq_len)
 
-    def train(self, encoder_inputs, decoder_target):
-        self.sess.run(fetches=[], feed_dict={
-            self.encoder_inputs: encoder_inputs, self.decoder_targets: decoder_target, self.keep_prob: 0.5
-        })
+    def train(self, flag):
+        self.sess.run(tf.global_variables_initializer())
+        print("begin train ...")
+        step = 0
+        _iter = 0
+        for i in range(flag.epoch):
+            pqd = PrePareQaData(flag, "train")
+            for encoder_input, decoder_target in pqd:
+                step += len(encoder_input)
+                _iter += 1
+                self.sess.run(fetches=[], feed_dict={
+                    self.encoder_inputs: encoder_input, self.decoder_targets: decoder_target, self.keep_prob: 0.5
+                })
 
     def test(self):
         pass
