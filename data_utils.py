@@ -13,8 +13,6 @@ class PrePareQaData(object):
         self._vocabDict = self.__load_chinese_vocab()
         self._sourceData = self.__read_dataset()
         self.PAD = 0
-        self.SOS = 1
-        self.EOS = 2
 
     def __load_chinese_vocab(self):
         cv = dict()
@@ -41,9 +39,7 @@ class PrePareQaData(object):
     def __word_to_id(self, dialogue):
         _id_lst = []
         for char in dialogue:
-            _id = self._vocabDict.get(char, -1)
-            if _id == -1:
-                continue
+            _id = self._vocabDict.get(char, 3)  # index(<UNKNOWN>) == 3
             _id_lst.append(_id)
         return _id_lst
 
@@ -56,22 +52,12 @@ class PrePareQaData(object):
             decoder_id_lst.append(self.__word_to_id(dialogue["A"]))
         return encoder_id_lst, decoder_id_lst
 
-    def __padding_decoder_id(self, decoder_id_lst):
-        max_len = max([len(item) for item in decoder_id_lst])
-        for encoder_id in decoder_id_lst:
-            encoder_id.extend((max_len-len(encoder_id)) * [self.PAD])
+    def __padding_coder_id(self, coder_id_lst):
+        max_len = max([len(item) for item in coder_id_lst])
+        for coder_id in coder_id_lst:
+            coder_id.extend((max_len - len(coder_id)) * [self.PAD])
 
-        lst = []
-        for encoder_id in decoder_id_lst:
-            lst.append([self.SOS] + encoder_id + [self.EOS])
-        return lst
-
-    def __padding_encoder_id(self, encoder_id_lst):
-        max_len = max([len(item) for item in encoder_id_lst])
-        for encoder_id in encoder_id_lst:
-            encoder_id.extend((max_len - len(encoder_id)) * [self.PAD])
-
-        return encoder_id_lst
+        return coder_id_lst
 
     def __iter__(self):
         return self
@@ -91,6 +77,6 @@ class PrePareQaData(object):
                 raise iter_exception
 
         encoder_input, decoder_target = self.__parse_dialogue(dialogue_lst)
-        encoder_input = self.__padding_encoder_id(encoder_input)
-        decoder_target = self.__padding_decoder_id(decoder_target)
+        encoder_input = self.__padding_coder_id(encoder_input)
+        decoder_target = self.__padding_coder_id(decoder_target)
         return np.array(encoder_input), np.array(decoder_target)
