@@ -8,6 +8,7 @@ class PredictModel(object):
         self.model_dir = "model/"
         self._currPath = os.path.dirname(__file__)
         self._vocabDict = self.__load_chinese_vocab()
+        self.__cnn_by_meta_graph()
 
     def __cnn_by_meta_graph(self):
         checkpoint_file = tf.train.latest_checkpoint(self.model_dir)
