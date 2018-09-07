@@ -1,5 +1,4 @@
 .idea/
-data/
 log_dir/
 *.pyc
 *.log
