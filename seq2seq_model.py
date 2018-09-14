@@ -153,8 +153,8 @@ class RnnAttentionModel(object):
                 cell=self.decoder_cell, helper=decoding_helper, initial_state=self.decoder_initial_state,
                 output_layer=self.output_layer)
 
-            final_outputs, _, _ = tf.contrib.seq2seq.dynamic_decode(decoder=inference_decoder)
-            self.greedy_predict = tf.expand_dims(final_outputs.sample_id, -1, name="predictions")
+            final_outputs, _, _ = tf.contrib.seq2seq.dynamic_decode(decoder=inference_decoder, maximum_iterations=30)
+            self.greedy_predict = tf.expand_dims(final_outputs.sample_id, axis=-1, name="predictions")
 
     def train(self, flag):
         self.sess.run(tf.global_variables_initializer())
@@ -178,7 +178,6 @@ class RnnAttentionModel(object):
         print("begin test ...")
         step = 0
         _iter = 0
-        self.sess.run(tf.global_variables_initializer())
         pqd = PrePareQaData(flag, "train")
         for encoder_input, decoder_target in pqd:
             step += len(encoder_input)
