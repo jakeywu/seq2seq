@@ -178,7 +178,7 @@ class RnnAttentionModel(object):
         print("begin test ...")
         step = 0
         _iter = 0
-        pqd = PrePareQaData(flag, "train")
+        pqd = PrePareQaData(flag, "test")
         for encoder_input, decoder_target in pqd:
             step += len(encoder_input)
             _iter += 1

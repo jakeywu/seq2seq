@@ -52,6 +52,6 @@ class PredictModel(object):
 
 
 if __name__ == "__main__":
-    ques = "你好，我想问下，月经干净了，过个四五天又来了一点点，是什么问题"
+    ques = "想问下"
     pm = PredictModel()
     print(pm.predict_by_meta_graph(ques))
